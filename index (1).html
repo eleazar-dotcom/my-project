@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<!--
+  ============================================================
+  A-Frame Dining Table Scene  (Milo tin, milk tin, two mugs)
+  Computer Graphics assignment - single file, A-Frame v1.5.0
+  ------------------------------------------------------------
+  CONSTRAINTS MET
+   - No external models (.gltf/.glb/.obj) and no external images.
+   - Everything is built from A-Frame primitives:
+     a-box, a-cylinder, a-torus, a-sphere, a-plane, a-sky.
+   - All textures (wood, floor, wall, rug, sky, Milo tin, milk tin,
+     picture) are drawn with the HTML5 <canvas> API in JavaScript.
+
+  HOW TO RUN
+   1. Save this file as index.html.
+   2. Open it in a browser (needs internet once, to load A-Frame
+      from the CDN). For best results serve it locally, e.g.:
+         python3 -m http.server 8000
+      then visit http://localhost:8000
+   3. Controls: mouse drag = look, W/A/S/D = move.
+      Headset / phone: press the VR goggles button (WebXR).
+  ============================================================
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>A-Frame Table Scene - Milo &amp; Milk</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+
+  <style>
+    #hud {
+      position: fixed; left: 12px; top: 12px; z-index: 10;
+      font: 13px/1.4 system-ui, sans-serif; color: #fff;
+      background: rgba(0,0,0,.45); padding: 8px 12px; border-radius: 8px;
+      pointer-events: none;
+    }
+  </style>
+
+  <script>
+    /* ----------------------------------------------------------
+       Helper: create a child entity with attributes and append it
+       ---------------------------------------------------------- */
+    function mk(parent, tag, attrs) {
+      var e = document.createElement(tag);
+      for (var k in attrs) e.setAttribute(k, attrs[k]);
+      parent.appendChild(e);
+      return e;
+    }
+    var SHADOW = 'cast: true; receive: true';
+
+    /* ----------------------------------------------------------
+       COMPONENT: chair
+       Seat + 4 legs + rails + 2 back posts + top rail + 5 spindles
+       + cushion. Faces -Z (backrest on the +Z side).
+       ---------------------------------------------------------- */
+    AFRAME.registerComponent('chair', {
+      schema: { cushion: { default: '#a63a2b' } },
+      init: function () {
+        var p = this.el;
+        var WOOD = 'src: #tex-wood; color: #d8a56f; roughness: 0.75';
+        function B(w, h, d, x, y, z) {
+          return mk(p, 'a-box', { width: w, height: h, depth: d,
+            position: x + ' ' + y + ' ' + z, material: WOOD, shadow: SHADOW });
+        }
+        B(0.46, 0.05, 0.46, 0, 0.45, 0);                       // seat
+        [[-0.2,-0.2],[0.2,-0.2],[-0.2,0.2],[0.2,0.2]].forEach(function (c) {
+          B(0.045, 0.425, 0.045, c[0], 0.2125, c[1]);          // 4 legs
+        });
+        B(0.4, 0.03, 0.025, 0, 0.15, 0.2);                     // stretchers
+        B(0.4, 0.03, 0.025, 0, 0.15, -0.2);
+        B(0.025, 0.03, 0.4, 0.2, 0.15, 0);
+        B(0.025, 0.03, 0.4, -0.2, 0.15, 0);
+        B(0.045, 0.5, 0.045, -0.2, 0.725, 0.2);                // back posts
+        B(0.045, 0.5, 0.045,  0.2, 0.725, 0.2);
+        B(0.46, 0.07, 0.04, 0, 0.95, 0.2);                     // top rail
+        B(0.4, 0.04, 0.03, 0, 0.56, 0.2);                      // lower rail
+        for (var i = -2; i <= 2; i++) {                        // vertical spindles
+          mk(p, 'a-cylinder', { radius: 0.01, height: 0.36,
+            position: (i * 0.075) + ' 0.75 0.2', material: WOOD, shadow: SHADOW });
+        }
+        mk(p, 'a-box', { width: 0.42, height: 0.035, depth: 0.42,        // cushion
+          position: '0 0.4925 0', color: this.data.cushion, roughness: 0.95, shadow: SHADOW });
+      }
+    });
+
+    /* ----------------------------------------------------------
+       COMPONENT: mug
+       Hollow-looking cylinder + dark liquid disk + torus handle
+       ---------------------------------------------------------- */
+    AFRAME.registerComponent('mug', {
+      schema: { color: { default: '#f6efe2' }, liquid: { default: '#3b2211' } },
+      init: function () {
+        var p = this.el, d = this.data;
+        var CER = 'color: ' + d.color + '; roughness: 0.25; metalness: 0.05; side: double';
+        // saucer
+        mk(p, 'a-cylinder', { radius: 0.075, height: 0.012, position: '0 0.006 0',
+          material: CER, shadow: SHADOW });
+        var cup = mk(p, 'a-entity', { position: '0 0.012 0' });
+        // outer wall (open ended so the inside is visible)
+        mk(cup, 'a-cylinder', { radius: 0.04, height: 0.09, 'open-ended': true,
+          position: '0 0.045 0', material: CER, shadow: SHADOW });
+        // bottom
+        mk(cup, 'a-cylinder', { radius: 0.04, height: 0.004, position: '0 0.002 0',
+          material: CER, shadow: SHADOW });
+        // dark inner disk = coffee / tea surface (gives the illusion of depth)
+        mk(cup, 'a-cylinder', { radius: 0.037, height: 0.002, position: '0 0.074 0',
+          color: d.liquid, roughness: 0.2, metalness: 0.2 });
+        // rim
+        mk(cup, 'a-torus', { radius: 0.04, 'radius-tubular': 0.0035, 'segments-tubular': 32,
+          rotation: '90 0 0', position: '0 0.09 0', material: CER });
+        // handle: torus half-buried in the side wall
+        mk(cup, 'a-torus', { radius: 0.026, 'radius-tubular': 0.007, 'segments-tubular': 24,
+          position: '0.055 0.048 0', material: CER, shadow: SHADOW });
+      }
+    });
+
+    /* ----------------------------------------------------------
+       COMPONENT: vase-flowers  (vase + stems + geometric flowers)
+       ---------------------------------------------------------- */
+    AFRAME.registerComponent('vase-flowers', {
+      init: function () {
+        var p = this.el;
+        mk(p, 'a-cylinder', { radius: 0.03, 'radius-top': 0.03, 'radius-bottom': 0.04, height: 0.16,
+          position: '0 0.08 0', color: '#2f6f9f', roughness: 0.15, metalness: 0.3, shadow: SHADOW });
+        mk(p, 'a-torus', { radius: 0.03, 'radius-tubular': 0.004, rotation: '90 0 0',
+          position: '0 0.16 0', color: '#2f6f9f' });
+        var flowers = [
+          { rz: 0,   rx: 0,   h: 0.22, c: '#ff5d73' },
+          { rz: 22,  rx: 8,   h: 0.19, c: '#ffd23f' },
+          { rz: -24, rx: -10, h: 0.20, c: '#ffffff' },
+          { rz: 10,  rx: -22, h: 0.17, c: '#ff9f43' }
+        ];
+        flowers.forEach(function (f) {
+          var g = mk(p, 'a-entity', { position: '0 0.1 0', rotation: f.rx + ' 0 ' + f.rz });
+          mk(g, 'a-cylinder', { radius: 0.003, height: f.h, position: '0 ' + (f.h / 2) + ' 0', color: '#2e8b3d' });
+          mk(g, 'a-sphere', { radius: 0.012, scale: '1.6 0.4 1', position: '0.012 ' + (f.h * 0.5) + ' 0',
+            rotation: '0 0 -30', color: '#3aa64a' });                       // leaf
+          var head = mk(g, 'a-entity', { position: '0 ' + f.h + ' 0' });
+          mk(head, 'a-sphere', { radius: 0.014, color: '#7a4b12', shadow: SHADOW });   // centre
+          for (var i = 0; i < 7; i++) {                                     // petals
+            var a = i / 7 * Math.PI * 2;
+            mk(head, 'a-sphere', { radius: 0.014, scale: '1 0.5 1', color: f.c,
+              position: (Math.cos(a) * 0.024) + ' 0 ' + (Math.sin(a) * 0.024), shadow: SHADOW });
+          }
+        });
+      }
+    });
+
+    /* ----------------------------------------------------------
+       COMPONENT: biscuit-plate  (plate + biscuits + bread slice)
+       ---------------------------------------------------------- */
+    AFRAME.registerComponent('biscuit-plate', {
+      init: function () {
+        var p = this.el;
+        mk(p, 'a-cylinder', { radius: 0.11, 'radius-top': 0.11, 'radius-bottom': 0.08, height: 0.016,
+          position: '0 0.008 0', color: '#fdfdfd', roughness: 0.2, shadow: SHADOW });
+        mk(p, 'a-torus', { radius: 0.1, 'radius-tubular': 0.003, rotation: '90 0 0',
+          position: '0 0.017 0', color: '#3a6ea5' });
+        for (var i = 0; i < 4; i++) {                       // round biscuits
+          var a = i / 4 * Math.PI * 2 + 0.4;
+          mk(p, 'a-cylinder', { radius: 0.032, height: 0.009,
+            position: (Math.cos(a) * 0.055) + ' 0.0215 ' + (Math.sin(a) * 0.055),
+            color: '#d9a05b', roughness: 0.9, shadow: SHADOW });
+          mk(p, 'a-cylinder', { radius: 0.01, height: 0.0095,
+            position: (Math.cos(a) * 0.055) + ' 0.0216 ' + (Math.sin(a) * 0.055),
+            color: '#b87a35' });
+        }
+        mk(p, 'a-box', { width: 0.075, height: 0.012, depth: 0.075,   // bread slice
+          position: '0 0.032 0', rotation: '0 25 0', color: '#e9c98a', roughness: 1, shadow: SHADOW });
+        mk(p, 'a-box', { width: 0.075, height: 0.0125, depth: 0.012,  // crust edge
+          position: '0 0.0322 0.0315', rotation: '0 25 0', color: '#a8692a' });
+      }
+    });
+  </script>
+</head>
+
+<body>
+  <div id="hud">Drag = look &nbsp;|&nbsp; W A S D = move &nbsp;|&nbsp; VR button (bottom-right) for headsets</div>
+
+  <a-scene shadow="type: pcfsoft" renderer="antialias: true" background="color: #87c4ef">
+
+    <a-assets>
+      <!-- Canvases filled with procedural artwork by the script below -->
+      <canvas id="tex-wood"  width="512"  height="512"></canvas>
+      <canvas id="tex-floor" width="1024" height="1024"></canvas>
+      <canvas id="tex-wall"  width="512"  height="512"></canvas>
+      <canvas id="tex-rug"   width="512"  height="416"></canvas>
+      <canvas id="tex-sky"   width="1024" height="512"></canvas>
+      <canvas id="tex-milo"  width="1024" height="360"></canvas>
+      <canvas id="tex-milk"  width="1024" height="448"></canvas>
+      <canvas id="tex-art"   width="512"  height="360"></canvas>
+    </a-assets>
+
+    <script>
+      /* ========================================================
+         PROCEDURAL CANVAS TEXTURES
+         (runs right after the canvases are parsed, before A-Frame
+          builds its materials)
+         ======================================================== */
+      (function () {
+        var seed = 7;
+        function rnd() { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; }
+        function ctx(id) { var c = document.getElementById(id); return { c: c, x: c.getContext('2d') }; }
+
+        /* ---- wood grain (table & chairs) ---- */
+        (function () {
+          var o = ctx('tex-wood'), x = o.x, w = o.c.width, h = o.c.height;
+          var g = x.createLinearGradient(0, 0, 0, h);
+          g.addColorStop(0, '#8a5a2b'); g.addColorStop(0.5, '#9c6a37'); g.addColorStop(1, '#85552a');
+          x.fillStyle = g; x.fillRect(0, 0, w, h);
+          for (var i = 0; i < 170; i++) {
+            var y = rnd() * h, dark = rnd() > 0.5;
+            x.strokeStyle = dark ? 'rgba(60,32,10,' + (0.1 + rnd() * 0.25) + ')'
+                                 : 'rgba(210,160,100,' + (0.08 + rnd() * 0.14) + ')';
+            x.lineWidth = 0.6 + rnd() * 2.2;
+            x.beginPath(); x.moveTo(0, y);
+            for (var px = 0; px <= w; px += 24)
+              x.lineTo(px, y + Math.sin(px * 0.018 + i) * 4 + (rnd() - 0.5) * 1.5);
+            x.stroke();
+          }
+          for (var k = 0; k < 3; k++) {                    // a few knots
+            var kx = rnd() * w, ky = rnd() * h;
+            for (var r = 14; r > 2; r -= 3) {
+              x.strokeStyle = 'rgba(50,25,8,0.35)'; x.lineWidth = 1.5;
+              x.beginPath(); x.ellipse(kx, ky, r * 1.8, r * 0.7, 0, 0, 7); x.stroke();
+            }
+          }
+        })();
+
+        /* ---- floor planks ---- */
+        (function () {
+          var o = ctx('tex-floor'), x = o.x, w = o.c.width, h = o.c.height, rows = 8, ph = h / rows;
+          for (var r = 0; r < rows; r++) {
+            var off = (r % 2) * (w / 4);
+            for (var s = -1; s < 3; s++) {
+              var px = s * (w / 2) + off, tone = 33 + rnd() * 12;
+              x.fillStyle = 'hsl(28,45%,' + tone + '%)';
+              x.fillRect(px, r * ph, w / 2, ph);
+              for (var i = 0; i < 14; i++) {
+                var gy = r * ph + rnd() * ph;
+                x.strokeStyle = 'rgba(40,20,5,' + (0.08 + rnd() * 0.15) + ')';
+                x.lineWidth = 0.7 + rnd() * 1.4;
+                x.beginPath(); x.moveTo(px, gy);
+                x.bezierCurveTo(px + w / 6, gy + (rnd() - 0.5) * 8, px + w / 3, gy + (rnd() - 0.5) * 8, px + w / 2, gy);
+                x.stroke();
+              }
+              x.strokeStyle = 'rgba(20,10,0,0.7)'; x.lineWidth = 3;      // plank joints
+              x.strokeRect(px, r * ph, w / 2, ph);
+            }
+          }
+        })();
+
+        /* ---- warm wall ---- */
+        (function () {
+          var o = ctx('tex-wall'), x = o.x, w = o.c.width, h = o.c.height;
+          x.fillStyle = '#f0d6a8'; x.fillRect(0, 0, w, h);
+          for (var i = 0; i < w; i += 32) {              // soft vertical stripes
+            x.fillStyle = (i / 32) % 2 ? 'rgba(255,255,255,0.10)' : 'rgba(180,120,60,0.07)';
+            x.fillRect(i, 0, 32, h);
+          }
+          for (var j = 0; j < 1500; j++) {               // plaster speckle
+            x.fillStyle = 'rgba(120,80,40,' + (rnd() * 0.07) + ')';
+            x.fillRect(rnd() * w, rnd() * h, 2, 2);
+          }
+        })();
+
+        /* ---- rug ---- */
+        (function () {
+          var o = ctx('tex-rug'), x = o.x, w = o.c.width, h = o.c.height;
+          x.fillStyle = '#7e2a24'; x.fillRect(0, 0, w, h);
+          x.strokeStyle = '#e8c27a'; x.lineWidth = 10; x.strokeRect(18, 18, w - 36, h - 36);
+          x.lineWidth = 3; x.strokeRect(38, 38, w - 76, h - 76);
+          x.fillStyle = '#c9893f';
+          for (var i = 0; i < 6; i++) {
+            var cx = 90 + i * 66, cy = h / 2;
+            x.beginPath(); x.moveTo(cx, cy - 50); x.lineTo(cx + 28, cy); x.lineTo(cx, cy + 50); x.lineTo(cx - 28, cy); x.closePath(); x.fill();
+          }
+          x.fillStyle = '#e8c27a';
+          for (var j = 0; j < 14; j++) { x.fillRect(60 + j * 30, 55, 12, 12); x.fillRect(60 + j * 30, h - 67, 12, 12); }
+        })();
+
+        /* ---- sky seen through the window ---- */
+        (function () {
+          var o = ctx('tex-sky'), x = o.x, w = o.c.width, h = o.c.height;
+          var g = x.createLinearGradient(0, 0, 0, h);
+          g.addColorStop(0, '#5aa9ea'); g.addColorStop(0.45, '#bfe4f7');
+          g.addColorStop(0.5, '#ffe2a8'); g.addColorStop(0.52, '#a9cf86'); g.addColorStop(1, '#6a9a4a');
+          x.fillStyle = g; x.fillRect(0, 0, w, h);
+          x.fillStyle = 'rgba(255,255,255,0.8)';
+          for (var i = 0; i < 18; i++) {                 // clouds
+            var cx = rnd() * w, cy = 60 + rnd() * 140;
+            for (var k = 0; k < 5; k++) { x.beginPath(); x.ellipse(cx + k * 22, cy + (rnd() - 0.5) * 10, 34, 16, 0, 0, 7); x.fill(); }
+          }
+        })();
+
+        /* ---- picture on the wall (sunset hills) ---- */
+        (function () {
+          var o = ctx('tex-art'), x = o.x, w = o.c.width, h = o.c.height;
+          var g = x.createLinearGradient(0, 0, 0, h);
+          g.addColorStop(0, '#f6a35a'); g.addColorStop(0.6, '#ffd98a'); g.addColorStop(1, '#ffe9b8');
+          x.fillStyle = g; x.fillRect(0, 0, w, h);
+          x.fillStyle = '#fff3c4'; x.beginPath(); x.arc(360, 170, 46, 0, 7); x.fill();
+          x.fillStyle = '#5b7f4a'; x.beginPath(); x.moveTo(0, 260); x.quadraticCurveTo(140, 170, 300, 270); x.lineTo(300, h); x.lineTo(0, h); x.fill();
+          x.fillStyle = '#3d5f35'; x.beginPath(); x.moveTo(180, 300); x.quadraticCurveTo(380, 200, w, 290); x.lineTo(w, h); x.lineTo(180, h); x.fill();
+        })();
+
+        /* ---- MILO tin label (two identical panels so it reads from both sides) ---- */
+        (function () {
+          var o = ctx('tex-milo'), x = o.x;
+          function panel(ox) {
+            x.save(); x.translate(ox, 0);
+            var g = x.createLinearGradient(0, 0, 0, 360);
+            g.addColorStop(0, '#0b5e2a'); g.addColorStop(0.5, '#1fa04a'); g.addColorStop(1, '#0b5e2a');
+            x.fillStyle = g; x.fillRect(0, 0, 512, 360);
+            x.fillStyle = '#5a3417'; x.fillRect(0, 0, 512, 34); x.fillRect(0, 326, 512, 34);   // brown bands
+            x.fillStyle = '#ffffff'; x.fillRect(0, 38, 512, 4); x.fillRect(0, 318, 512, 4);     // white pin-stripes
+            x.textAlign = 'center'; x.textBaseline = 'middle';
+            x.font = '700 30px Arial, sans-serif'; x.fillStyle = '#ffffff';
+            x.fillText('NESTLE', 256, 78);
+            x.font = '900 128px "Arial Black", Impact, sans-serif';
+            x.lineJoin = 'round'; x.lineWidth = 12; x.strokeStyle = '#4a2a10'; x.strokeText('MILO', 256, 190);
+            x.fillStyle = '#ffffff'; x.fillText('MILO', 256, 190);
+            x.strokeStyle = '#ffffff'; x.lineWidth = 6;                                          // white swoosh
+            x.beginPath(); x.moveTo(70, 270); x.quadraticCurveTo(256, 305, 442, 262); x.stroke();
+            x.strokeStyle = '#6b3f1b'; x.lineWidth = 3;
+            x.beginPath(); x.moveTo(90, 278); x.quadraticCurveTo(256, 312, 424, 270); x.stroke();
+            x.font = '700 26px Arial, sans-serif'; x.fillStyle = '#ffffff';
+            x.fillText('ENERGY FOOD DRINK', 256, 300);
+            x.restore();
+          }
+          panel(0); panel(512);
+        })();
+
+        /* ---- evaporated MILK tin label ---- */
+        (function () {
+          var o = ctx('tex-milk'), x = o.x;
+          function panel(ox) {
+            x.save(); x.translate(ox, 0);
+            x.fillStyle = '#ffffff'; x.fillRect(0, 0, 512, 448);
+            x.fillStyle = '#c8102e'; x.fillRect(0, 0, 512, 56);                                  // red top band
+            x.fillStyle = '#0b3d91'; x.fillRect(0, 56, 512, 6);
+            x.textAlign = 'center'; x.textBaseline = 'middle';
+            x.font = 'italic 900 58px "Arial Black", Impact, sans-serif'; x.fillStyle = '#0b3d91';
+            x.fillText('IDEAL', 256, 108);
+            x.fillStyle = '#0b3d91'; x.fillRect(0, 150, 512, 150);                               // blue band
+            x.fillStyle = '#c8102e'; x.fillRect(0, 150, 512, 8); x.fillRect(0, 292, 512, 8);
+            x.font = '900 128px "Arial Black", Impact, sans-serif';
+            x.fillStyle = '#ffffff'; x.fillText('MILK', 256, 228);
+            x.font = '800 42px Arial, sans-serif'; x.fillStyle = '#c8102e';
+            x.fillText('EVAPORATED', 256, 338);
+            x.fillStyle = '#c8102e'; x.fillRect(0, 372, 512, 20);                                // stripes
+            x.fillStyle = '#0b3d91'; x.fillRect(0, 398, 512, 20);
+            x.fillStyle = '#c8102e'; x.fillRect(0, 424, 512, 24);
+            x.restore();
+          }
+          panel(0); panel(512);
+        })();
+      })();
+    </script>
+
+    <!-- ===================== SKY / OUTDOORS ===================== -->
+    <a-sky src="#tex-sky"></a-sky>
+    <a-plane rotation="-90 0 0" position="0 -0.05 0" width="300" height="300" color="#6fa84a"></a-plane>
+    <a-sphere position="2 3.2 -26" radius="1.6" material="shader: flat; color: #fff3b0"></a-sphere>
+    <a-sphere position="2 3.2 -26" radius="2.8" material="shader: flat; color: #ffe27a; opacity: 0.25; transparent: true"></a-sphere>
+    <a-cylinder position="-6 1.5 -14" radius="0.25" height="3" color="#6b4423"></a-cylinder>
+    <a-sphere position="-6 4.2 -14" radius="2.1" color="#3f8f3a" roughness="1"></a-sphere>
+    <a-cylinder position="7 1.2 -18" radius="0.22" height="2.4" color="#6b4423"></a-cylinder>
+    <a-sphere position="7 3.4 -18" radius="1.8" color="#4a9a3f" roughness="1"></a-sphere>
+
+    <!-- ===================== ROOM ===================== -->
+    <!-- floor -->
+    <a-plane rotation="-90 0 0" width="7.2" height="7.2" material="src: #tex-floor; repeat: 2 2; roughness: 0.6"
+             shadow="receive: true"></a-plane>
+    <!-- ceiling -->
+    <a-plane rotation="90 0 0" position="0 3 0" width="7.2" height="7.2" color="#f6e8cf" side="double"></a-plane>
+    <!-- side + front walls -->
+    <a-box position="-3.55 1.5 0" width="0.1" height="3" depth="7.4" material="src: #tex-wall; repeat: 3 1" shadow="receive: true"></a-box>
+    <a-box position="3.55 1.5 0"  width="0.1" height="3" depth="7.4" material="src: #tex-wall; repeat: 3 1" shadow="receive: true"></a-box>
+    <a-box position="0 1.5 3.55"  width="7.4" height="3" depth="0.1" material="src: #tex-wall; repeat: 3 1" shadow="receive: true"></a-box>
+    <!-- back wall built around a window opening (x -1..1, y 1.0..2.4) -->
+    <a-box position="0 0.5 -3.55"    width="7.4" height="1.0" depth="0.1" material="src: #tex-wall; repeat: 3 1" shadow="receive: true"></a-box>
+    <a-box position="0 2.7 -3.55"    width="7.4" height="0.6" depth="0.1" material="src: #tex-wall; repeat: 3 1" shadow="receive: true"></a-box>
+    <a-box position="-2.35 1.7 -3.55" width="2.7" height="1.4" depth="0.1" material="src: #tex-wall; repeat: 1 1" shadow="receive: true"></a-box>
+    <a-box position="2.35 1.7 -3.55"  width="2.7" height="1.4" depth="0.1" material="src: #tex-wall; repeat: 1 1" shadow="receive: true"></a-box>
+    <!-- skirting board along the back wall -->
+    <a-box position="0 0.07 -3.48" width="7.2" height="0.14" depth="0.04" color="#8a5a2b"></a-box>
+
+    <!-- window frame, mullions, sill, glass -->
+    <a-box position="0 2.43 -3.5" width="2.14" height="0.07" depth="0.12" color="#f4efe6"></a-box>
+    <a-box position="0 0.97 -3.5" width="2.14" height="0.07" depth="0.12" color="#f4efe6"></a-box>
+    <a-box position="-1.03 1.7 -3.5" width="0.07" height="1.5" depth="0.12" color="#f4efe6"></a-box>
+    <a-box position="1.03 1.7 -3.5"  width="0.07" height="1.5" depth="0.12" color="#f4efe6"></a-box>
+    <a-box position="0 1.7 -3.5" width="0.05" height="1.4" depth="0.08" color="#f4efe6"></a-box>
+    <a-box position="0 1.7 -3.5" width="2.0" height="0.05" depth="0.08" color="#f4efe6"></a-box>
+    <a-box position="0 0.95 -3.38" width="2.4" height="0.05" depth="0.28" color="#e8dcc6"></a-box>
+    <a-plane position="0 1.7 -3.52" width="2" height="1.4"
+             material="color: #d8efff; opacity: 0.12; transparent: true; side: double"></a-plane>
+    <!-- curtains -->
+    <a-cylinder position="0 2.55 -3.3" rotation="0 0 90" radius="0.02" height="3.1" color="#4a3520"></a-cylinder>
+    <a-box position="-1.35 1.65 -3.3" width="0.5" height="1.9" depth="0.08" color="#b5452d" roughness="1" shadow="receive: true"></a-box>
+    <a-box position="1.35 1.65 -3.3"  width="0.5" height="1.9" depth="0.08" color="#b5452d" roughness="1" shadow="receive: true"></a-box>
+
+    <!-- wall decor -->
+    <a-box position="-3.47 1.8 -1" width="0.04" height="0.8" depth="1.1" color="#5a3a1c"></a-box>
+    <a-plane position="-3.44 1.8 -1" rotation="0 90 0" width="1" height="0.7" material="src: #tex-art; shader: flat"></a-plane>
+    <a-cylinder position="3.46 1.9 -0.8" rotation="0 0 90" radius="0.22" height="0.04" color="#fdfaf2"></a-cylinder>
+    <a-torus position="3.43 1.9 -0.8" rotation="0 90 0" radius="0.22" radius-tubular="0.015" color="#5a3a1c"></a-torus>
+    <a-box position="3.43 1.97 -0.8" width="0.01" height="0.13" depth="0.012" color="#222"></a-box>
+    <a-box position="3.43 1.9 -0.74" width="0.01" height="0.012" depth="0.1" color="#222"></a-box>
+
+    <!-- rug -->
+    <a-box position="0 0.007 0" width="3.4" height="0.014" depth="2.76"
+           material="src: #tex-rug; roughness: 1" shadow="receive: true"></a-box>
+
+    <!-- ===================== TABLE ===================== -->
+    <a-entity id="table" position="0 0 0">
+      <!-- tabletop (surface at y = 0.79) -->
+      <a-box position="0 0.75 0" width="1.6" height="0.08" depth="0.9"
+             material="src: #tex-wood; repeat: 2 1; roughness: 0.55" shadow="cast: true; receive: true"></a-box>
+      <!-- apron under the top -->
+      <a-box position="0 0.68 0.38"  width="1.3" height="0.07" depth="0.03" material="src: #tex-wood" shadow="cast: true; receive: true"></a-box>
+      <a-box position="0 0.68 -0.38" width="1.3" height="0.07" depth="0.03" material="src: #tex-wood" shadow="cast: true; receive: true"></a-box>
+      <a-box position="0.7 0.68 0"   width="0.03" height="0.07" depth="0.7" material="src: #tex-wood" shadow="cast: true; receive: true"></a-box>
+      <a-box position="-0.7 0.68 0"  width="0.03" height="0.07" depth="0.7" material="src: #tex-wood" shadow="cast: true; receive: true"></a-box>
+      <!-- four legs -->
+      <a-box position="-0.7 0.355 0.38"  width="0.09" height="0.71" depth="0.09" material="src: #tex-wood; color: #d6a06a" shadow="cast: true; receive: true"></a-box>
+      <a-box position="0.7 0.355 0.38"   width="0.09" height="0.71" depth="0.09" material="src: #tex-wood; color: #d6a06a" shadow="cast: true; receive: true"></a-box>
+      <a-box position="-0.7 0.355 -0.38" width="0.09" height="0.71" depth="0.09" material="src: #tex-wood; color: #d6a06a" shadow="cast: true; receive: true"></a-box>
+      <a-box position="0.7 0.355 -0.38"  width="0.09" height="0.71" depth="0.09" material="src: #tex-wood; color: #d6a06a" shadow="cast: true; receive: true"></a-box>
+    </a-entity>
+
+    <!-- ===================== CHAIRS (tucked in, opposite sides) ===================== -->
+    <a-entity chair position="0 0 0.62"></a-entity>
+    <a-entity chair="cushion: #a63a2b" position="0 0 -0.62" rotation="0 180 0"></a-entity>
+
+    <!-- ===================== TABLETOP ITEMS (surface y = 0.79) ===================== -->
+    <!-- MILO tin: textured body + wider brown/gold lid -->
+    <a-entity id="milo" position="-0.3 0.79 -0.12">
+      <a-cylinder radius="0.09" height="0.2" position="0 0.1 0" rotation="0 -80 0" open-ended="true"
+                  material="src: #tex-milo; roughness: 0.45; metalness: 0.25; side: double"
+                  shadow="cast: true; receive: true"></a-cylinder>
+      <a-cylinder radius="0.09" height="0.004" position="0 0.002 0" color="#7a5a2a" metalness="0.6" roughness="0.4"></a-cylinder>
+      <a-cylinder radius="0.093" height="0.012" position="0 0.194 0" color="#8a8a8a" metalness="0.7" roughness="0.3"
+                  shadow="cast: true; receive: true"></a-cylinder>
+      <a-cylinder radius="0.098" height="0.035" position="0 0.215 0" color="#b8862b" metalness="0.55" roughness="0.35"
+                  shadow="cast: true; receive: true"></a-cylinder>
+      <a-torus radius="0.098" radius-tubular="0.003" rotation="90 0 0" position="0 0.233 0" color="#e0b04a" metalness="0.7"></a-torus>
+    </a-entity>
+
+    <!-- evaporated MILK tin: label body + silver rims -->
+    <a-entity id="milk" position="-0.1 0.79 -0.2">
+      <a-cylinder radius="0.04" height="0.11" position="0 0.055 0" rotation="0 -80 0" open-ended="true"
+                  material="src: #tex-milk; roughness: 0.5; metalness: 0.15; side: double"
+                  shadow="cast: true; receive: true"></a-cylinder>
+      <a-cylinder radius="0.0425" height="0.008" position="0 0.004 0" color="#d4d4d8" metalness="0.85" roughness="0.28"
+                  shadow="cast: true; receive: true"></a-cylinder>
+      <a-cylinder radius="0.0425" height="0.008" position="0 0.106 0" color="#d4d4d8" metalness="0.85" roughness="0.28"
+                  shadow="cast: true; receive: true"></a-cylinder>
+      <a-cylinder radius="0.036" height="0.003" position="0 0.111 0" color="#e6e6ea" metalness="0.85" roughness="0.25"></a-cylinder>
+      <a-torus radius="0.011" radius-tubular="0.0018" rotation="90 0 0" position="0.012 0.115 0" color="#b9b9c0" metalness="0.9"></a-torus>
+    </a-entity>
+
+    <!-- two ceramic mugs (each on a saucer) -->
+    <a-entity mug="color: #f6efe2; liquid: #3b2211" position="-0.42 0.79 0.22" rotation="0 -20 0"></a-entity>
+    <a-entity mug="color: #cfe3f2; liquid: #b5651d" position="0.45 0.79 -0.18" rotation="0 200 0"></a-entity>
+
+    <!-- plate with biscuits and a bread slice -->
+    <a-entity biscuit-plate position="0.1 0.79 0.2"></a-entity>
+
+    <!-- spoon = sphere (bowl) + box (handle) -->
+    <a-entity position="-0.22 0.795 0.28" rotation="0 15 0">
+      <a-sphere radius="0.018" scale="1.4 0.3 1" position="-0.05 0 0" color="#d0d0d6" metalness="0.9" roughness="0.2" shadow="cast: true; receive: true"></a-sphere>
+      <a-box width="0.1" height="0.003" depth="0.012" position="0.02 0 0" color="#d0d0d6" metalness="0.9" roughness="0.2" shadow="cast: true; receive: true"></a-box>
+    </a-entity>
+
+    <!-- centrepiece vase with geometric flowers -->
+    <a-entity vase-flowers position="0.58 0.79 0.02"></a-entity>
+
+    <!-- ===================== PENDANT LAMP ===================== -->
+    <a-cylinder position="0 2.6 0.2" radius="0.006" height="0.8" color="#222"></a-cylinder>
+    <a-cylinder position="0 2.15 0.2" radius-top="0.05" radius-bottom="0.26" height="0.2" open-ended="true"
+                material="color: #d98b3a; side: double; emissive: #8a4a12; emissiveIntensity: 0.4"></a-cylinder>
+    <a-sphere position="0 2.07 0.2" radius="0.05" material="shader: flat; color: #fff0c0"></a-sphere>
+
+    <!-- ===================== LIGHTING (3-point + ambient) ===================== -->
+    <!-- ambient base -->
+    <a-entity light="type: ambient; color: #ffeedd; intensity: 0.55"></a-entity>
+    <!-- key light: warm sunlight, casts the main shadows -->
+    <a-entity position="3 5 3"
+              light="type: directional; color: #fff1d6; intensity: 1.0; castShadow: true;
+                     shadowCameraLeft: -3; shadowCameraRight: 3; shadowCameraTop: 3; shadowCameraBottom: -3;
+                     shadowCameraNear: 0.5; shadowCameraFar: 20;
+                     shadowMapWidth: 2048; shadowMapHeight: 2048; shadowBias: -0.0004"></a-entity>
+    <!-- fill light: cool and soft, no shadows -->
+    <a-entity position="-4 3 4" light="type: directional; color: #a9c8ff; intensity: 0.25"></a-entity>
+    <!-- warm point light inside the pendant lamp -->
+    <a-entity position="0 2.05 0.2"
+              light="type: point; color: #ffb35c; intensity: 0.9; distance: 7; decay: 1.5;
+                     castShadow: true; shadowMapWidth: 1024; shadowMapHeight: 1024; shadowBias: -0.001"></a-entity>
+
+    <!-- ===================== CAMERA (eye level, angled down at the table) ===================== -->
+    <a-entity camera look-controls wasd-controls="acceleration: 25"
+              position="0 1.65 3.0" rotation="-17 0 0"></a-entity>
+
+  </a-scene>
+</body>
+</html>
